@@ -17,23 +17,23 @@ int main()
         return "Working fine...";
     });
 
-    CROW_ROUTE(app, "/api/blogs").methods(crow::HTTPMethod::POST)
+    CROW_ROUTE(app, "/vote/id").methods(crow::HTTPMethod::POST)
     ([&](const crow::request& req)
     {
         auto body = crow::json::load(req.body);
         if (!body)
             return crow::response(400, "Invalid body");
-        std::string title, content;
+        std::string name, vote;
         try {
-            title = body["title"].s();
-            content = body["content"].s();
+            name = body["name"].s();
+            vote = body["vote"].s();
         } catch (const std::runtime_error &err) {
             return crow::response(400, "Invalid body");
         }
 
         try {
-            redisClient.lpush("titles", { title });
-            redisClient.lpush("contents", { content });
+            redisClient.lpush("name", { name });
+            redisClient.lpush("vote", { vote });
             redisClient.sync_commit();
         } catch (const std::runtime_error &ex) {
             return crow::response(500, "Internal Server Error");
@@ -42,11 +42,11 @@ int main()
         return crow::response(200, "Blog added");
     });
 
-    CROW_ROUTE(app, "/api/blogs")
+    CROW_ROUTE(app, "/vote")
     ([&]()
     {
-        auto r1 = redisClient.lrange("titles", 0, -1);
-        auto r2 = redisClient.lrange("contents", 0, -1);
+        auto r1 = redisClient.lrange("name", 0, -1);
+        auto r2 = redisClient.lrange("vote", 0, -1);
         redisClient.sync_commit();
         r1.wait();
         r2.wait();
@@ -57,16 +57,16 @@ int main()
         auto rC = r2.get().as_array();
         std::transform(rC.begin(), rC.end(), contents.begin(), [](const cpp_redis::reply &rep) { return rep.as_string(); });
 
-        std::vector<crow::json::wvalue> blogs;
+        std::vector<crow::json::wvalue> vote;
         for (int i = 0; i < titles.size(); i++)
         {
-            blogs.push_back(crow::json::wvalue{
-                {"title", titles[i]},
-                {"content", contents[i]}
+            vote.push_back(crow::json::wvalue{
+                {"name", titles[i]},
+                {"vote", contents[i]}
             });
         }
 
-        return crow::json::wvalue{{"data", blogs}};
+        return crow::json::wvalue{{"data", vote}};
     });
 
     app.port(3000).multithreaded().run();
